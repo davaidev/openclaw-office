@@ -1,0 +1,10 @@
+{
+  "dock": {
+    "collapseDock": "收起对话",
+    "expandDock": "展开对话",
+    "attachmentWip": "附件（开发中）",
+    "placeholder": "输入消息... (Enter 发送, Shift+Enter 换行)",
+    "startNewChat": "开始一段新的对话",
+    "thinkingStatus": "思考中..."
+  }
+}

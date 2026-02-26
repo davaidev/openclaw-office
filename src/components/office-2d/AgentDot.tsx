@@ -11,7 +11,6 @@ interface AgentDotProps {
 export function AgentDot({ agent }: AgentDotProps) {
   const selectedAgentId = useOfficeStore((s) => s.selectedAgentId);
   const selectAgent = useOfficeStore((s) => s.selectAgent);
-  const openContextMenu = useOfficeStore((s) => s.openContextMenu);
   const theme = useOfficeStore((s) => s.theme);
   const [hovered, setHovered] = useState(false);
 
@@ -29,10 +28,6 @@ export function AgentDot({ agent }: AgentDotProps) {
       transform={`translate(${agent.position.x}, ${agent.position.y})`}
       style={{ cursor: "pointer" }}
       onClick={() => selectAgent(agent.id)}
-      onContextMenu={(e) => {
-        e.preventDefault();
-        openContextMenu(agent.id, { x: e.clientX, y: e.clientY });
-      }}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
     >

@@ -201,16 +201,6 @@ export type ViewMode = "2d" | "3d";
 export type ThemeMode = "light" | "dark";
 export type PageId = "office" | "dashboard" | "channels" | "skills" | "cron" | "settings";
 
-export type ContextMenuState = {
-  agentId: string;
-  position: { x: number; y: number };
-} | null;
-
-export type ForceActionDialogState = {
-  agentId: string;
-  mode: "send-message" | "kill";
-} | null;
-
 export interface TokenSnapshot {
   timestamp: number;
   total: number;
@@ -231,8 +221,6 @@ export interface OfficeStore {
   theme: ThemeMode;
   bloomEnabled: boolean;
   operatorScopes: string[];
-  contextMenu: ContextMenuState;
-  forceActionDialog: ForceActionDialogState;
   tokenHistory: TokenSnapshot[];
   agentCosts: Record<string, number>;
   currentPage: PageId;
@@ -271,12 +259,8 @@ export interface OfficeStore {
   setTheme: (theme: ThemeMode) => void;
   setBloomEnabled: (enabled: boolean) => void;
 
-  // Force Action
+  // Scopes & Metrics
   setOperatorScopes: (scopes: string[]) => void;
-  openContextMenu: (agentId: string, position: { x: number; y: number }) => void;
-  closeContextMenu: () => void;
-  openForceActionDialog: (agentId: string, mode: "send-message" | "kill") => void;
-  closeForceActionDialog: () => void;
   pushTokenSnapshot: (snapshot: TokenSnapshot) => void;
   setAgentCosts: (costs: Record<string, number>) => void;
   setCurrentPage: (page: PageId) => void;
@@ -284,10 +268,6 @@ export interface OfficeStore {
 
   // 指标
   updateMetrics: () => void;
-}
-
-export function hasOperatorPermission(scopes: string[]): boolean {
-  return scopes.includes("operator") || scopes.length === 0;
 }
 
 // --- 错误 ---

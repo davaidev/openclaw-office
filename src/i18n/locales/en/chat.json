@@ -1,0 +1,10 @@
+{
+  "dock": {
+    "collapseDock": "Collapse chat",
+    "expandDock": "Expand chat",
+    "attachmentWip": "Attachments (coming soon)",
+    "placeholder": "Type a message... (Enter to send, Shift+Enter for new line)",
+    "startNewChat": "Start a new conversation",
+    "thinkingStatus": "Thinking..."
+  }
+}

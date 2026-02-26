@@ -29,7 +29,6 @@ export function AgentCharacter({ agent }: AgentCharacterProps) {
   const spawnDone = useRef(!agent.isSubAgent);
   const selectAgent = useOfficeStore((s) => s.selectAgent);
   const selectedAgentId = useOfficeStore((s) => s.selectedAgentId);
-  const openContextMenu = useOfficeStore((s) => s.openContextMenu);
   const [hovered, setHovered] = useState(false);
 
   const isSelected = selectedAgentId === agent.id;
@@ -84,14 +83,6 @@ export function AgentCharacter({ agent }: AgentCharacterProps) {
       onClick={(e) => {
         e.stopPropagation();
         selectAgent(agent.id);
-      }}
-      onContextMenu={(e) => {
-        e.stopPropagation();
-        e.nativeEvent.preventDefault();
-        openContextMenu(agent.id, {
-          x: e.nativeEvent.clientX,
-          y: e.nativeEvent.clientY,
-        });
       }}
       onPointerOver={(e) => {
         e.stopPropagation();

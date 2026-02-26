@@ -1,13 +1,11 @@
 import { useEffect, type ReactNode, type RefObject } from "react";
+import { useTranslation } from "react-i18next";
 import { Outlet } from "react-router-dom";
-import { AgentContextMenu } from "@/components/overlays/AgentContextMenu";
-import { ForceActionDialog } from "@/components/overlays/ForceActionDialog";
 import { ChatDockBar } from "@/components/chat/ChatDockBar";
 import { ChatTimelineDrawer } from "@/components/chat/ChatTimelineDrawer";
 import type { GatewayWsClient } from "@/gateway/ws-client";
 import { useOfficeStore } from "@/store/office-store";
 import { useChatDockStore } from "@/store/console-stores/chat-dock-store";
-import { ActionBar } from "./ActionBar";
 import { Sidebar } from "./Sidebar";
 import { TopBar } from "./TopBar";
 
@@ -18,7 +16,7 @@ interface AppShellProps {
 }
 
 export function AppShell({ children, wsClient, isMobile = false }: AppShellProps) {
-  const nullRef = { current: null } as RefObject<GatewayWsClient | null>;
+  const { t } = useTranslation("layout");
   const sidebarCollapsed = useOfficeStore((s) => s.sidebarCollapsed);
   const setSidebarCollapsed = useOfficeStore((s) => s.setSidebarCollapsed);
   const chatDockHeight = useOfficeStore((s) => s.chatDockHeight);
@@ -66,7 +64,6 @@ export function AppShell({ children, wsClient, isMobile = false }: AppShellProps
         <main className="relative flex flex-1 flex-col overflow-hidden">
           <div className="relative flex-1 overflow-hidden">
             {content}
-            <ActionBar wsClient={wsClient ?? nullRef} />
           </div>
           <ChatTimelineDrawer height={chatDockHeight} onHeightChange={setChatDockHeight} />
           <ChatDockBar />
@@ -77,7 +74,7 @@ export function AppShell({ children, wsClient, isMobile = false }: AppShellProps
               type="button"
               onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
               className="fixed bottom-0 left-1/2 z-20 flex h-10 w-full max-w-xs -translate-x-1/2 items-center justify-center border-t border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-900"
-              aria-label={sidebarCollapsed ? "展开侧栏" : "收起侧栏"}
+              aria-label={sidebarCollapsed ? t("sidebar.expandSidebar") : t("sidebar.collapseSidebar")}
             >
               <div className="h-1 w-12 rounded-full bg-gray-300 dark:bg-gray-600" />
             </button>
@@ -89,7 +86,7 @@ export function AppShell({ children, wsClient, isMobile = false }: AppShellProps
                   onClick={() => setSidebarCollapsed(true)}
                   onKeyDown={(e) => e.key === "Escape" && setSidebarCollapsed(true)}
                   className="fixed inset-0 z-30 bg-black/30"
-                  aria-label="关闭侧栏"
+                  aria-label={t("sidebar.closeSidebar")}
                 />
                 <aside className="fixed inset-x-0 bottom-10 top-12 z-40 overflow-hidden rounded-t-xl border-t border-gray-200 bg-white shadow-xl dark:border-gray-700 dark:bg-gray-900">
                   <Sidebar />
@@ -101,8 +98,6 @@ export function AppShell({ children, wsClient, isMobile = false }: AppShellProps
           <Sidebar />
         )}
       </div>
-      <AgentContextMenu />
-      <ForceActionDialog wsClient={wsClient ?? nullRef} />
     </div>
   );
 }

@@ -10,9 +10,7 @@ import type {
   AgentVisualStatus,
   CollaborationLink,
   ConnectionStatus,
-  ContextMenuState,
   EventHistoryItem,
-  ForceActionDialogState,
   OfficeStore,
   PageId,
   SessionSnapshot,
@@ -111,8 +109,6 @@ export const useOfficeStore = create<OfficeStore>()(
     theme: getInitialTheme(),
     bloomEnabled: getInitialBloom(),
     operatorScopes: [] as string[],
-    contextMenu: null as ContextMenuState,
-    forceActionDialog: null as ForceActionDialogState,
     tokenHistory: [] as TokenSnapshot[],
     agentCosts: {} as Record<string, number>,
     currentPage: "office" as PageId,
@@ -346,31 +342,6 @@ export const useOfficeStore = create<OfficeStore>()(
     setOperatorScopes: (scopes: string[]) => {
       set((state) => {
         state.operatorScopes = scopes;
-      });
-    },
-
-    openContextMenu: (agentId: string, position: { x: number; y: number }) => {
-      set((state) => {
-        state.contextMenu = { agentId, position };
-      });
-    },
-
-    closeContextMenu: () => {
-      set((state) => {
-        state.contextMenu = null;
-      });
-    },
-
-    openForceActionDialog: (agentId: string, mode: "send-message" | "kill") => {
-      set((state) => {
-        state.forceActionDialog = { agentId, mode };
-        state.contextMenu = null;
-      });
-    },
-
-    closeForceActionDialog: () => {
-      set((state) => {
-        state.forceActionDialog = null;
       });
     },
 

@@ -23,8 +23,6 @@ function resetStore() {
     theme: "dark",
     bloomEnabled: true,
     operatorScopes: [],
-    contextMenu: null,
-    forceActionDialog: null,
     tokenHistory: [],
     agentCosts: {},
     runIdMap: new Map(),

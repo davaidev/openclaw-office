@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import {
   LayoutDashboard,
   ArrowLeft,
@@ -7,28 +8,26 @@ import {
 import type { ConnectionStatus, ThemeMode, ViewMode, PageId } from "@/gateway/types";
 import { isWebGLAvailable } from "@/lib/webgl-detect";
 import { useOfficeStore } from "@/store/office-store";
+import { LanguageSwitcher } from "@/components/shared/LanguageSwitcher";
 
-const STATUS_CONFIG: Record<ConnectionStatus, { color: string; pulse: boolean; label: string }> = {
-  connecting: { color: "#eab308", pulse: true, label: "连接中..." },
-  connected: { color: "#22c55e", pulse: false, label: "已连接" },
-  reconnecting: { color: "#f97316", pulse: true, label: "重连中" },
-  disconnected: { color: "#6b7280", pulse: false, label: "未连接" },
-  error: { color: "#ef4444", pulse: false, label: "连接错误" },
-};
-
-const PAGE_TITLES: Record<string, string> = {
-  dashboard: "Dashboard",
-  channels: "Channels",
-  skills: "Skills",
-  cron: "Cron Tasks",
-  settings: "Settings",
-} as const;
+function getStatusConfig(
+  t: (key: string) => string,
+): Record<ConnectionStatus, { color: string; pulse: boolean; label: string }> {
+  return {
+    connecting: { color: "#eab308", pulse: true, label: t("common:status.connecting") },
+    connected: { color: "#22c55e", pulse: false, label: t("common:status.connected") },
+    reconnecting: { color: "#f97316", pulse: true, label: t("common:status.reconnecting") },
+    disconnected: { color: "#6b7280", pulse: false, label: t("common:status.disconnected") },
+    error: { color: "#ef4444", pulse: false, label: t("common:status.error") },
+  };
+}
 
 interface TopBarProps {
   isMobile?: boolean;
 }
 
 export function TopBar({ isMobile = false }: TopBarProps) {
+  const { t } = useTranslation("layout");
   const connectionStatus = useOfficeStore((s) => s.connectionStatus);
   const connectionError = useOfficeStore((s) => s.connectionError);
   const metrics = useOfficeStore((s) => s.globalMetrics);
@@ -39,7 +38,7 @@ export function TopBar({ isMobile = false }: TopBarProps) {
   const currentPage = useOfficeStore((s) => s.currentPage);
 
   const webglAvailable = useMemo(() => isWebGLAvailable(), []);
-  const statusCfg = STATUS_CONFIG[connectionStatus];
+  const statusCfg = getStatusConfig(t)[connectionStatus];
   const isOfficePage = currentPage === "office";
 
   return (
@@ -48,8 +47,6 @@ export function TopBar({ isMobile = false }: TopBarProps) {
         <OfficeTopBarContent
           viewMode={viewMode}
           setViewMode={setViewMode}
-          theme={theme}
-          setTheme={setTheme}
           metrics={metrics}
           webglAvailable={webglAvailable}
           isMobile={isMobile}
@@ -60,6 +57,8 @@ export function TopBar({ isMobile = false }: TopBarProps) {
 
       <div className="ml-auto flex items-center gap-3">
         <ConsoleMenu currentPage={currentPage} />
+        <ThemeToggle theme={theme} setTheme={setTheme} />
+        <LanguageSwitcher />
         <ConnectionIndicator
           statusCfg={statusCfg}
           connectionError={connectionError}
@@ -73,20 +72,17 @@ export function TopBar({ isMobile = false }: TopBarProps) {
 function OfficeTopBarContent({
   viewMode,
   setViewMode,
-  theme,
-  setTheme,
   metrics,
   webglAvailable,
   isMobile,
 }: {
   viewMode: ViewMode;
   setViewMode: (mode: ViewMode) => void;
-  theme: ThemeMode;
-  setTheme: (t: ThemeMode) => void;
   metrics: { activeAgents: number; totalAgents: number; totalTokens: number };
   webglAvailable: boolean;
   isMobile?: boolean;
 }) {
+  const { t } = useTranslation("layout");
   return (
     <>
       <div className="flex items-center gap-3">
@@ -94,9 +90,8 @@ function OfficeTopBarContent({
         <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-500 dark:bg-gray-800 dark:text-gray-400">v0.1.0</span>
       </div>
       <ViewModeSwitch viewMode={viewMode} setViewMode={setViewMode} webglAvailable={webglAvailable} isMobile={isMobile} />
-      <ThemeToggle theme={theme} setTheme={setTheme} />
       <div className="mx-8 flex items-center gap-6 text-sm text-gray-500 dark:text-gray-400">
-        <span>活跃 <strong className="text-gray-800 dark:text-gray-200">{metrics.activeAgents}/{metrics.totalAgents}</strong></span>
+        <span>{t("topbar.activeCountText")} <strong className="text-gray-800 dark:text-gray-200">{metrics.activeAgents}/{metrics.totalAgents}</strong></span>
         <span>Tokens <strong className="text-gray-800 dark:text-gray-200">{formatTokens(metrics.totalTokens)}</strong></span>
       </div>
     </>
@@ -104,16 +99,18 @@ function OfficeTopBarContent({
 }
 
 function ConsoleTopBarContent({ currentPage }: { currentPage: PageId }) {
+  const { t } = useTranslation("layout");
   return (
     <div className="flex items-center gap-3">
       <h1 className="text-lg font-semibold text-gray-800 dark:text-gray-100">
-        {PAGE_TITLES[currentPage] ?? "控制台"}
+        {t(`topbar.pageTitles.${currentPage}`, { defaultValue: t("topbar.pageTitles.fallback") })}
       </h1>
     </div>
   );
 }
 
 function ConsoleMenu({ currentPage }: { currentPage: PageId }) {
+  const { t } = useTranslation("layout");
   const navigate = useNavigate();
   const isInConsole = currentPage !== "office";
 
@@ -129,12 +126,12 @@ function ConsoleMenu({ currentPage }: { currentPage: PageId }) {
       {isInConsole ? (
         <>
           <ArrowLeft className="h-4 w-4" />
-          <span className="hidden sm:inline">Office</span>
+          <span className="hidden sm:inline">{t("topbar.office")}</span>
         </>
       ) : (
         <>
           <LayoutDashboard className="h-4 w-4" />
-          <span className="hidden sm:inline">控制台</span>
+          <span className="hidden sm:inline">{t("topbar.console")}</span>
         </>
       )}
     </button>
@@ -177,6 +174,7 @@ function ViewModeSwitch({
   webglAvailable: boolean;
   isMobile?: boolean;
 }) {
+  const { t } = useTranslation("layout");
   const modes: { key: ViewMode; label: string }[] = [
     { key: "2d", label: "2D" },
     { key: "3d", label: "3D" },
@@ -189,9 +187,9 @@ function ViewModeSwitch({
         const disabled = key === "3d" && (!webglAvailable || isMobile);
         const title = disabled
           ? isMobile
-            ? "小屏幕不支持 3D 模式"
-            : "当前浏览器不支持 3D 渲染"
-          : `切换到 ${label} 视图`;
+            ? t("topbar.viewMode.mobileNotSupported")
+            : t("topbar.viewMode.webglNotSupported")
+          : t("topbar.viewMode.switchTo", { mode: label });
         return (
           <button
             key={key}
@@ -215,10 +213,11 @@ function ViewModeSwitch({
 }
 
 function ThemeToggle({ theme, setTheme }: { theme: ThemeMode; setTheme: (t: ThemeMode) => void }) {
+  const { t } = useTranslation("layout");
   return (
     <button
       onClick={() => setTheme(theme === "light" ? "dark" : "light")}
-      title={theme === "light" ? "切换到暗色模式" : "切换到亮色模式"}
+      title={theme === "light" ? t("topbar.theme.switchToDark") : t("topbar.theme.switchToLight")}
       className="ml-2 flex h-7 w-7 items-center justify-center rounded-md text-base transition-colors hover:bg-gray-200 dark:hover:bg-gray-700"
     >
       {theme === "light" ? "🌙" : "☀️"}
