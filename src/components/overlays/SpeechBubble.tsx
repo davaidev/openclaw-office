@@ -46,7 +46,7 @@ export function SpeechBubbleOverlay({ agent }: SpeechBubbleOverlayProps) {
       style={{
         left: `${leftPct}%`,
         top: `${topPct}%`,
-        transform: `translate(${translateX}, -100%) translateY(-40px)`,
+        transform: `translate(${translateX}, -100%) translateY(-52px)`,
         opacity: agent.status === "speaking" ? 1 : 0,
         transition: "opacity 500ms ease",
         zIndex: 20,

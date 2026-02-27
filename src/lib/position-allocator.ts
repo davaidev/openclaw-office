@@ -8,6 +8,7 @@ import {
   SCALE_X_2D_TO_3D,
   SCALE_Z_2D_TO_3D,
   MEETING_SEAT_RADIUS,
+  DESK_UNIT,
 } from "./constants";
 
 function hashString(str: string): number {
@@ -90,13 +91,94 @@ export function allocateMeetingPositions(
   tableCenter: { x: number; y: number },
 ): Array<{ x: number; y: number }> {
   const count = agentIds.length;
-  if (count === 0) return [];
+  if (count === 0) {
+    return [];
+  }
 
   return agentIds.map((_, i) => {
     const angle = (2 * Math.PI * i) / count - Math.PI / 2;
     return {
       x: Math.round(tableCenter.x + (Math.cos(angle) * MEETING_SEAT_RADIUS) / SCALE_X_2D_TO_3D),
       y: Math.round(tableCenter.y + (Math.sin(angle) * MEETING_SEAT_RADIUS) / SCALE_Z_2D_TO_3D),
+    };
+  });
+}
+
+// --- Desk-unit layout for the new flat office ---
+
+export interface DeskSlot {
+  unitX: number;
+  unitY: number;
+}
+
+/** Adaptive column count based on agent count */
+function adaptiveCols(agentCount: number): number {
+  if (agentCount <= 8) {
+    return 2;
+  }
+  if (agentCount <= 12) {
+    return 3;
+  }
+  return 4;
+}
+
+/**
+ * Calculate desk-unit positions inside a zone.
+ * Returns an array of (x,y) center-points for DeskUnit placement.
+ * `slotCount` is the total number of slots to create (>= agentCount to show empty desks).
+ */
+export function calculateDeskSlots(
+  zone: { x: number; y: number; width: number; height: number },
+  agentCount: number,
+  slotCount?: number,
+): DeskSlot[] {
+  const total = slotCount ?? agentCount;
+  if (total === 0) {
+    return [];
+  }
+  const cols = adaptiveCols(agentCount);
+  const rows = Math.ceil(total / cols);
+  const padX = 40;
+  const padY = 50;
+  const availW = zone.width - padX * 2;
+  const availH = zone.height - padY * 2;
+  const cellW = Math.min(DESK_UNIT.width, availW / cols);
+  const cellH = Math.min(DESK_UNIT.height, availH / Math.max(rows, 1));
+
+  const slots: DeskSlot[] = [];
+  for (let i = 0; i < total; i++) {
+    const col = i % cols;
+    const row = Math.floor(i / cols);
+    slots.push({
+      unitX: Math.round(zone.x + padX + cellW * (col + 0.5)),
+      unitY: Math.round(zone.y + padY + cellH * (row + 0.5)),
+    });
+  }
+  return slots;
+}
+
+/**
+ * Deterministic assignment: map an agentId to a stable slot index.
+ * Ensures the same agent always ends up at the same desk.
+ */
+export function agentSlotIndex(agentId: string, totalSlots: number): number {
+  return hashString(agentId) % totalSlots;
+}
+
+/** Meeting-zone seat positions (SVG coords, circular layout) */
+export function calculateMeetingSeatsSvg(
+  agentCount: number,
+  tableCenter: { x: number; y: number },
+  seatRadius: number,
+): Array<{ x: number; y: number }> {
+  if (agentCount === 0) {
+    return [];
+  }
+  return Array.from({ length: agentCount }, (_, i) => {
+    const angle = (2 * Math.PI * i) / agentCount - Math.PI / 2;
+    return {
+      x: Math.round(tableCenter.x + Math.cos(angle) * seatRadius),
+      y: Math.round(tableCenter.y + Math.sin(angle) * seatRadius),
     };
   });
 }

@@ -60,6 +60,32 @@ export const DESK_MAX_AGENTS = DESK_GRID_COLS * DESK_GRID_ROWS;
 export const HOT_DESK_GRID_COLS = 4;
 export const HOT_DESK_GRID_ROWS = 3;
 
+// 家具尺寸常量 (flat isometric 2D)
+export const FURNITURE = {
+  desk: { width: 100, height: 60 },
+  chair: { size: 30 },
+  meetingTable: { minRadius: 60, maxRadius: 100 },
+  sofa: { width: 110, height: 50 },
+  plant: { width: 28, height: 36 },
+  coffeeCup: { size: 14 },
+} as const;
+
+// 工位单元（Desk + Chair + AgentAvatar）
+export const DESK_UNIT = {
+  width: 140,
+  height: 110,
+  avatarRadius: 20,
+  avatarOffsetY: -8,
+} as const;
+
+// Agent 头像
+export const AVATAR = {
+  radius: 20,
+  selectedRadius: 24,
+  strokeWidth: 3,
+  nameLabelMaxChars: 12,
+} as const;
+
 // 3D 场景常量
 // SVG 1200×700 maps to 3D building 16×12 world units
 export const SCALE_X_2D_TO_3D = 16 / SVG_WIDTH;
