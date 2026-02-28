@@ -1,17 +1,42 @@
 {
-  "name": "openclaw-office",
-  "version": "0.1.0",
+  "name": "@ww-ai-lab/openclaw-office",
+  "version": "0.2.0",
   "type": "module",
   "license": "MIT",
   "description": "Visual monitoring & management frontend for OpenClaw Multi-Agent system",
   "repository": {
     "type": "git",
-    "url": "https://github.com/WW-AI-Lab/openclaw-office.git"
+    "url": "git+https://github.com/WW-AI-Lab/openclaw-office.git"
   },
+  "homepage": "https://github.com/WW-AI-Lab/openclaw-office",
+  "bugs": {
+    "url": "https://github.com/WW-AI-Lab/openclaw-office/issues"
+  },
+  "keywords": [
+    "openclaw",
+    "multi-agent",
+    "ai-agents",
+    "office",
+    "visualization",
+    "monitoring",
+    "dashboard",
+    "react",
+    "vite"
+  ],
+  "bin": {
+    "openclaw-office": "bin/openclaw-office.js"
+  },
+  "files": [
+    "dist/",
+    "bin/",
+    "LICENSE",
+    "README.md"
+  ],
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
+    "start": "node ./bin/openclaw-office.js",
     "test": "vitest run",
     "test:watch": "vitest",
     "lint": "oxlint src/",
