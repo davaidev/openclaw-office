@@ -159,36 +159,32 @@ function initAgentsFromSnapshot(
   }
 }
 
-interface ConfigGetResponse {
-  value?: unknown;
-}
-
 async function fetchGatewayConfig(
   rpc: GatewayRpcClient,
   setMaxSubAgents: (n: number) => void,
   setAgentToAgentConfig: (config: { enabled: boolean; allow: string[] }) => void,
 ): Promise<void> {
   try {
-    const resp = await rpc.request<ConfigGetResponse>("config.get", {
-      keys: ["agents.defaults.subagents", "tools.agentToAgent"],
-    });
-    const val = resp.value as Record<string, unknown> | undefined;
-    if (val) {
-      const subagents = val["agents.defaults.subagents"] as
-        | { maxConcurrent?: number }
-        | undefined;
-      if (subagents?.maxConcurrent && subagents.maxConcurrent >= 1 && subagents.maxConcurrent <= 50) {
-        setMaxSubAgents(subagents.maxConcurrent);
-      }
-      const a2a = val["tools.agentToAgent"] as
-        | { enabled?: boolean; allow?: string[] }
-        | undefined;
-      if (a2a) {
-        setAgentToAgentConfig({
-          enabled: a2a.enabled ?? false,
-          allow: Array.isArray(a2a.allow) ? a2a.allow : [],
-        });
-      }
+    const resp = await rpc.request<{ config?: Record<string, unknown> }>("config.get");
+    const config = resp.config;
+    if (!config) {
+      return;
+    }
+
+    const agentsCfg = config.agents as Record<string, unknown> | undefined;
+    const defaults = agentsCfg?.defaults as Record<string, unknown> | undefined;
+    const subagents = defaults?.subagents as { maxConcurrent?: number } | undefined;
+    if (subagents?.maxConcurrent && subagents.maxConcurrent >= 1 && subagents.maxConcurrent <= 50) {
+      setMaxSubAgents(subagents.maxConcurrent);
+    }
+
+    const tools = config.tools as Record<string, unknown> | undefined;
+    const a2a = tools?.agentToAgent as { enabled?: boolean; allow?: string[] } | undefined;
+    if (a2a) {
+      setAgentToAgentConfig({
+        enabled: a2a.enabled ?? false,
+        allow: Array.isArray(a2a.allow) ? a2a.allow : [],
+      });
     }
   } catch {
     // Gateway doesn't support config.get or permission denied — use defaults

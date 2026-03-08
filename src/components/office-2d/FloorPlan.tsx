@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { SpeechBubbleOverlay } from "@/components/overlays/SpeechBubble";
 import type { VisualAgent } from "@/gateway/types";
 import {
   SVG_WIDTH,
@@ -220,7 +221,11 @@ export function FloorPlan() {
         ))}
       </svg>
 
-      {/* Speaking indicators now rendered inside AgentAvatar SVG (SpeakingIndicator) */}
+      {agentList
+        .filter((agent) => agent.speechBubble)
+        .map((agent) => (
+          <SpeechBubbleOverlay key={`bubble-${agent.id}`} agent={agent} />
+        ))}
     </div>
   );
 }

@@ -47,4 +47,19 @@ describe("TopBar view mode switch", () => {
     fireEvent.click(screen.getByText("2D"));
     expect(useOfficeStore.getState().viewMode).toBe("2d");
   });
+
+  it("displays formatted token totals from global metrics", () => {
+    useOfficeStore.setState({
+      globalMetrics: {
+        activeAgents: 1,
+        totalAgents: 3,
+        totalTokens: 87_200,
+        tokenRate: 42,
+        collaborationHeat: 0,
+      },
+    });
+
+    renderWithRouter(<TopBar />);
+    expect(screen.getByText("87.2k")).toBeInTheDocument();
+  });
 });

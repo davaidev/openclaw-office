@@ -6,6 +6,7 @@ import type { GatewayEventFrame } from "@/gateway/types";
 import i18n from "@/i18n";
 import { localPersistence } from "@/lib/local-persistence";
 import { generateMessageId } from "@/lib/message-utils";
+import { useOfficeStore } from "@/store/office-store";
 
 export type MessageRole = "user" | "assistant";
 
@@ -40,7 +41,7 @@ interface ChatDockState {
   loadHistory: () => Promise<void>;
   initializeHistory: () => Promise<void>;
   setTargetAgent: (agentId: string) => void;
-  handleChatEvent: (event: Record<string, unknown>) => void;
+  handleChatEvent: (event: Record<string, unknown>, frameSessionKey?: string) => void;
   clearError: () => void;
   initEventListeners: (
     wsClient: {
@@ -51,6 +52,38 @@ interface ChatDockState {
 
 function buildSessionKey(agentId: string): string {
   return `agent:${agentId}:main`;
+}
+
+function isStableMainAgent(agentId: string): boolean {
+  const agent = useOfficeStore.getState().agents.get(agentId);
+  return Boolean(agent && agent.confirmed && !agent.isPlaceholder && !agent.isSubAgent);
+}
+
+function getFallbackTargetAgentId(): string | null {
+  const candidates = Array.from(useOfficeStore.getState().agents.values()).filter(
+    (agent) => agent.confirmed && !agent.isPlaceholder && !agent.isSubAgent,
+  );
+
+  if (candidates.length === 0) {
+    return null;
+  }
+
+  return candidates.find((agent) => agent.id === "main")?.id ?? candidates[0].id;
+}
+
+function resolveTargetAgentId(agentId: string): string | null {
+  if (isStableMainAgent(agentId)) {
+    return agentId;
+  }
+  return getFallbackTargetAgentId();
+}
+
+function pickLatestAgentSessionKey(agentId: string, sessions: SessionInfo[]): string {
+  const prefix = `agent:${agentId}:`;
+  const matched = sessions
+    .filter((session) => session.key.startsWith(prefix))
+    .sort((a, b) => b.lastActiveAt - a.lastActiveAt);
+  return matched[0]?.key ?? buildSessionKey(agentId);
 }
 
 function extractText(content: unknown): string {
@@ -181,7 +214,25 @@ export const useChatDockStore = create<ChatDockState>((set, get) => ({
     try {
       const adapter = getAdapter();
       const result = await adapter.sessionsList();
-      set({ sessions: Array.isArray(result) ? result : [] });
+      const sessions = Array.isArray(result) ? result : [];
+      set({ sessions });
+
+      const { targetAgentId, currentSessionKey } = get();
+      if (targetAgentId && isStableMainAgent(targetAgentId)) {
+        const preferredSessionKey = pickLatestAgentSessionKey(targetAgentId, sessions);
+        if (preferredSessionKey !== currentSessionKey) {
+          set({
+            currentSessionKey: preferredSessionKey,
+            messages: [],
+            streamingMessage: null,
+            activeRunId: null,
+            error: null,
+            isStreaming: false,
+            isHistoryLoaded: false,
+          });
+          get().initializeHistory();
+        }
+      }
     } catch {
       // Silently handle — sessions not critical
     }
@@ -231,9 +282,14 @@ export const useChatDockStore = create<ChatDockState>((set, get) => ({
   },
 
   setTargetAgent: (agentId) => {
-    const sessionKey = buildSessionKey(agentId);
+    const resolvedAgentId = resolveTargetAgentId(agentId);
+    if (!resolvedAgentId) {
+      return;
+    }
+
+    const sessionKey = pickLatestAgentSessionKey(resolvedAgentId, get().sessions);
     set({
-      targetAgentId: agentId,
+      targetAgentId: resolvedAgentId,
       currentSessionKey: sessionKey,
       messages: [],
       streamingMessage: null,
@@ -245,7 +301,14 @@ export const useChatDockStore = create<ChatDockState>((set, get) => ({
     get().initializeHistory();
   },
 
-  handleChatEvent: (event) => {
+  handleChatEvent: (event, frameSessionKey) => {
+    const currentSessionKey = get().currentSessionKey;
+    const payloadSessionKey = String(event.sessionKey || frameSessionKey || "");
+
+    if (payloadSessionKey && payloadSessionKey !== currentSessionKey) {
+      return;
+    }
+
     const eventState = String(event.state || "");
     const runId = String(event.runId || "");
     const message = event.message as Record<string, unknown> | undefined;

@@ -129,6 +129,103 @@ describe("office-store", () => {
       expect(agent?.zone).toBe("corridor");
       expect(agent?.status).toBe("thinking");
     });
+
+    it("prefers confirmed main agents for ordinary session routing", () => {
+      useOfficeStore.getState().initAgents([{ id: "main", name: "Main" }]);
+      useOfficeStore.getState().addSubAgent("main", {
+        sessionKey: "agent:main:subagent:sub-1",
+        agentId: "sub-1",
+        label: "Sub-1",
+        task: "",
+        requesterSessionKey: "agent:main:main",
+        startedAt: Date.now(),
+      });
+      useOfficeStore.setState((state) => {
+        state.sessionKeyMap.set("agent:main:shared", ["sub-1", "main"]);
+      });
+
+      useOfficeStore.getState().processAgentEvent({
+        runId: "run-main",
+        seq: 1,
+        stream: "assistant",
+        ts: Date.now(),
+        data: { text: "hello" },
+        sessionKey: "agent:main:shared",
+      });
+
+      expect(useOfficeStore.getState().agents.get("main")?.status).toBe("speaking");
+      expect(useOfficeStore.getState().agents.get("sub-1")?.status).toBe("idle");
+    });
+
+    it("retires unresolved ephemeral agents instead of auto-confirming them", () => {
+      vi.useFakeTimers();
+
+      useOfficeStore.getState().processAgentEvent({
+        runId: "ephemeral-run",
+        seq: 1,
+        stream: "lifecycle",
+        ts: Date.now(),
+        data: { phase: "start" },
+      });
+
+      expect(useOfficeStore.getState().agents.get("ephemeral-run")?.confirmed).toBe(false);
+
+      vi.advanceTimersByTime(5_000);
+
+      const state = useOfficeStore.getState();
+      expect(state.agents.has("ephemeral-run")).toBe(false);
+      expect(state.runIdMap.has("ephemeral-run")).toBe(false);
+      vi.useRealTimers();
+    });
+
+    it("does not retire confirmed UUID-like main agents", () => {
+      useOfficeStore.getState().initAgents([
+        { id: "5533959a-1a5e-4b44-a39a-a0799f71db92", name: "UUID Agent" },
+      ]);
+
+      useOfficeStore.getState().processAgentEvent({
+        runId: "run-uuid",
+        seq: 1,
+        stream: "assistant",
+        ts: Date.now(),
+        data: {
+          agentId: "5533959a-1a5e-4b44-a39a-a0799f71db92",
+          text: "uuid agent text",
+        },
+        sessionKey: "agent:5533959a-1a5e-4b44-a39a-a0799f71db92:main",
+      });
+
+      const agent = useOfficeStore.getState().agents.get("5533959a-1a5e-4b44-a39a-a0799f71db92");
+      expect(agent).toBeDefined();
+      expect(agent?.confirmed).toBe(true);
+      expect(agent?.status).toBe("speaking");
+    });
+
+    it("merges ephemeral runtime entities into explicit agent identities when evidence arrives", () => {
+      useOfficeStore.getState().processAgentEvent({
+        runId: "run-late-identity",
+        seq: 1,
+        stream: "lifecycle",
+        ts: 1,
+        data: { phase: "start" },
+      });
+
+      expect(useOfficeStore.getState().agents.get("run-late-identity")?.confirmed).toBe(false);
+
+      useOfficeStore.getState().processAgentEvent({
+        runId: "run-late-identity",
+        seq: 2,
+        stream: "assistant",
+        ts: 2,
+        data: { agentId: "main-real", text: "resolved" },
+        sessionKey: "agent:main-real:main",
+      });
+
+      const state = useOfficeStore.getState();
+      expect(state.agents.has("run-late-identity")).toBe(false);
+      expect(state.agents.get("main-real")?.confirmed).toBe(true);
+      expect(state.runIdMap.get("run-late-identity")).toBe("main-real");
+    });
   });
 
   describe("selectAgent", () => {
@@ -159,6 +256,46 @@ describe("office-store", () => {
       }
 
       expect(useOfficeStore.getState().eventHistory.length).toBeLessThanOrEqual(200);
+    });
+  });
+
+  describe("token snapshots", () => {
+    it("updates global token metrics from the latest snapshot", () => {
+      const { pushTokenSnapshot } = useOfficeStore.getState();
+
+      pushTokenSnapshot({
+        timestamp: 60_000,
+        total: 120,
+        byAgent: { main: 120 },
+      });
+
+      pushTokenSnapshot({
+        timestamp: 120_000,
+        total: 240,
+        byAgent: { main: 240 },
+      });
+
+      const state = useOfficeStore.getState();
+      expect(state.tokenHistory).toHaveLength(2);
+      expect(state.globalMetrics.totalTokens).toBe(240);
+      expect(state.globalMetrics.tokenRate).toBe(120);
+    });
+
+    it("keeps latest metrics when snapshot history is trimmed", () => {
+      const { pushTokenSnapshot } = useOfficeStore.getState();
+
+      for (let i = 1; i <= 35; i++) {
+        pushTokenSnapshot({
+          timestamp: i * 60_000,
+          total: i * 10,
+          byAgent: { main: i * 10 },
+        });
+      }
+
+      const state = useOfficeStore.getState();
+      expect(state.tokenHistory).toHaveLength(30);
+      expect(state.globalMetrics.totalTokens).toBe(350);
+      expect(state.globalMetrics.tokenRate).toBe(10);
     });
   });
 

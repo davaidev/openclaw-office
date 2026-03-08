@@ -24,4 +24,12 @@ describe("resolveGatewayWebSocketUrl", () => {
       resolveGatewayWebSocketUrl("ws://upstream.example:18789", browserLocation),
     ).toBe("ws://upstream.example:18789");
   });
+
+  it("prefers the same-origin proxy when requested", () => {
+    expect(
+      resolveGatewayWebSocketUrl("ws://localhost:18789", browserLocation, {
+        preferSameOriginProxy: true,
+      }),
+    ).toBe("ws://office.example:5180/gateway-ws");
+  });
 });

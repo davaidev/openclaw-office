@@ -26,6 +26,7 @@ export function DeveloperSection() {
   const wsUrl = resolveGatewayWebSocketUrl(
     injected?.gatewayUrl || import.meta.env.VITE_GATEWAY_URL,
     window.location,
+    { preferSameOriginProxy: import.meta.env.DEV },
   );
 
   const copyToClipboard = (text: string, key: string) => {

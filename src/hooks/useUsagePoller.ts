@@ -9,6 +9,14 @@ const FAILURE_THRESHOLD = 3;
 interface UsageStatusResponse {
   total?: number;
   byAgent?: Record<string, number>;
+  tokens?: {
+    total?: number;
+    byAgent?: Record<string, number>;
+  };
+  usage?: {
+    totalTokens?: number;
+    byAgent?: Record<string, number>;
+  };
 }
 
 interface UsageCostResponse {
@@ -47,18 +55,15 @@ export function useUsagePoller(rpcRef: React.RefObject<GatewayRpcClient | null>)
 
         failureCountRef.current = 0;
 
-        const now = Date.now();
-        const total =
-          typeof statusResp?.total === "number"
-            ? statusResp.total
-            : sumValues(statusResp?.byAgent ?? {});
-        const byAgent = statusResp?.byAgent ?? {};
+        const resolved = resolveTokenSnapshot(statusResp);
 
-        pushTokenSnapshot({
-          timestamp: now,
-          total,
-          byAgent,
-        });
+        if (resolved) {
+          pushTokenSnapshot({
+            timestamp: Date.now(),
+            total: resolved.total,
+            byAgent: resolved.byAgent,
+          });
+        }
 
         const costs = costResp?.byAgent ?? costResp?.costs ?? {};
         if (Object.keys(costs).length > 0) {
@@ -99,7 +104,38 @@ function sumValues(obj: Record<string, number>): number {
   return sum;
 }
 
-function estimateFromEventHistory(
+export function resolveTokenSnapshot(
+  statusResp: UsageStatusResponse | null | undefined,
+): { total: number; byAgent: Record<string, number> } | null {
+  if (!statusResp) {
+    return null;
+  }
+
+  const byAgent =
+    statusResp.byAgent ??
+    statusResp.tokens?.byAgent ??
+    statusResp.usage?.byAgent ??
+    {};
+
+  const totalCandidates = [
+    statusResp.total,
+    statusResp.tokens?.total,
+    statusResp.usage?.totalTokens,
+  ].filter((value): value is number => typeof value === "number" && Number.isFinite(value));
+
+  const total = totalCandidates[0] ?? sumValues(byAgent);
+
+  if (!Number.isFinite(total) || total <= 0) {
+    return null;
+  }
+
+  return {
+    total: Math.max(0, Math.round(total)),
+    byAgent,
+  };
+}
+
+export function estimateFromEventHistory(
   history: { timestamp: number; agentId: string; stream: string }[],
 ): TokenSnapshot | null {
   const byAgent: Record<string, number> = {};

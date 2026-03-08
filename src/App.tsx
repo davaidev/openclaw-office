@@ -106,6 +106,7 @@ export function App() {
   const gatewayUrl = resolveGatewayWebSocketUrl(
     injected?.gatewayUrl || import.meta.env.VITE_GATEWAY_URL,
     window.location,
+    { preferSameOriginProxy: import.meta.env.DEV },
   );
   const gatewayToken = injected?.gatewayToken || import.meta.env.VITE_GATEWAY_TOKEN || "";
   const { isMobile } = useResponsive();

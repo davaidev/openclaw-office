@@ -140,6 +140,66 @@ function positionKey(pos: { x: number; y: number }): string {
   return `${pos.x},${pos.y}`;
 }
 
+function isConfirmedMainAgent(agent: VisualAgent | undefined): boolean {
+  return Boolean(agent && agent.confirmed && !agent.isSubAgent && !agent.isPlaceholder);
+}
+
+function trackRemovedId(id: string): void {
+  removedAgentIds.add(id);
+  setTimeout(() => removedAgentIds.delete(id), REMOVED_IDS_TTL_MS);
+}
+
+function pickPreferredMappedAgentId(
+  state: { agents: Map<string, VisualAgent> },
+  agentIds: string[],
+): string | undefined {
+  const preferredMain = agentIds.find((id) => isConfirmedMainAgent(state.agents.get(id)));
+  if (preferredMain) {
+    return preferredMain;
+  }
+
+  const preferredConfirmed = agentIds.find((id) => {
+    const agent = state.agents.get(id);
+    return agent && agent.confirmed && !agent.isPlaceholder;
+  });
+  if (preferredConfirmed) {
+    return preferredConfirmed;
+  }
+
+  return agentIds[0];
+}
+
+function mergeEphemeralAgentState(
+  state: { agents: Map<string, VisualAgent>; selectedAgentId: string | null },
+  ephemeralId: string,
+  targetId: string,
+): void {
+  if (ephemeralId === targetId) {
+    return;
+  }
+
+  const ephemeral = state.agents.get(ephemeralId);
+  const target = state.agents.get(targetId);
+  if (!ephemeral || !target || ephemeral.confirmed) {
+    return;
+  }
+
+  target.status = ephemeral.status;
+  target.currentTool = ephemeral.currentTool;
+  target.speechBubble = ephemeral.speechBubble;
+  target.lastActiveAt = Math.max(target.lastActiveAt, ephemeral.lastActiveAt);
+  target.toolCallCount = Math.max(target.toolCallCount, ephemeral.toolCallCount);
+  if (ephemeral.toolCallHistory.length > 0) {
+    target.toolCallHistory = [...ephemeral.toolCallHistory];
+  }
+  target.runId = ephemeral.runId ?? target.runId;
+
+  state.agents.delete(ephemeralId);
+  if (state.selectedAgentId === ephemeralId) {
+    state.selectedAgentId = targetId;
+  }
+}
+
 function nextPlaceholderIndex(agents: Map<string, VisualAgent>): number {
   let maxIdx = -1;
   for (const a of agents.values()) {
@@ -667,17 +727,19 @@ export const useOfficeStore = create<OfficeStore>()(
           }
         } else {
           // Normal (non-sub-agent) event resolution:
-          // 1) runIdMap (streaming chunks for known agent)
-          agentId = state.runIdMap.get(event.runId);
-          // 2) explicit payload agentId
-          if (!agentId && dataAgentId) {
+          // 1) explicit payload agentId
+          if (dataAgentId) {
             agentId = dataAgentId;
           }
-          // 3) sessionKeyMap (only if the session is associated with a confirmed agent)
+          // 2) runIdMap (streaming chunks for known agent)
+          if (!agentId) {
+            agentId = state.runIdMap.get(event.runId);
+          }
+          // 3) sessionKeyMap (prefer confirmed main agents instead of insertion order)
           if (!agentId && event.sessionKey) {
             const sessionAgents = state.sessionKeyMap.get(event.sessionKey);
             if (sessionAgents && sessionAgents.length > 0) {
-              agentId = sessionAgents[0];
+              agentId = pickPreferredMappedAgentId(state, sessionAgents);
             }
           }
           // 4) sessionKey pattern: "agent:<name>:main" → resolve <name> to a known agent
@@ -745,7 +807,7 @@ export const useOfficeStore = create<OfficeStore>()(
           // Unknown agent — check if this is from an initAgents-known agent ID
           const isKnownMainAgent = isRegisteredMainAgentId(state, agentId, event.sessionKey);
 
-          if (isKnownMainAgent) {
+          if (isKnownMainAgent || Boolean(dataAgentId)) {
             const occupied = new Set<string>();
             for (const a of state.agents.values()) {
               occupied.add(positionKey(a.position));
@@ -754,19 +816,33 @@ export const useOfficeStore = create<OfficeStore>()(
             agent.runId = event.runId;
             state.agents.set(agentId, agent);
           } else {
-            // Create as unconfirmed — will be confirmed by poller or timeout
+            // Create as unconfirmed ephemeral entity until stronger identity evidence arrives.
             const agent = createVisualAgent(agentId, `Agent-${agentId.slice(0, 6)}`, false, new Set(), false);
             agent.runId = event.runId;
             state.agents.set(agentId, agent);
             newUnconfirmedId = agentId;
           }
+        }
 
+        const previouslyMappedAgentId = state.runIdMap.get(event.runId);
+        if (
+          previouslyMappedAgentId &&
+          previouslyMappedAgentId !== agentId &&
+          state.agents.has(previouslyMappedAgentId)
+        ) {
+          mergeEphemeralAgentState(state, previouslyMappedAgentId, agentId);
+          trackRemovedId(previouslyMappedAgentId);
         }
 
         state.runIdMap.set(event.runId, agentId);
 
         if (event.sessionKey) {
           const existing = state.sessionKeyMap.get(event.sessionKey) ?? [];
+          if (previouslyMappedAgentId && previouslyMappedAgentId !== agentId) {
+            const cleaned = existing.filter((id) => id !== previouslyMappedAgentId);
+            existing.length = 0;
+            existing.push(...cleaned);
+          }
           if (!existing.includes(agentId)) {
             existing.push(agentId);
             state.sessionKeyMap.set(event.sessionKey, existing);
@@ -824,7 +900,7 @@ export const useOfficeStore = create<OfficeStore>()(
           const store = useOfficeStore.getState();
           const a = store.agents.get(id);
           if (a && !a.confirmed) {
-            store.confirmAgent(id, "main");
+            discardEphemeralAgent(id);
           }
         }, UNCONFIRMED_TIMEOUT_MS);
         confirmationTimers.set(id, timer);
@@ -906,10 +982,28 @@ export const useOfficeStore = create<OfficeStore>()(
 
     pushTokenSnapshot: (snapshot: TokenSnapshot) => {
       set((state) => {
+        const previous = state.tokenHistory[state.tokenHistory.length - 1];
         state.tokenHistory.push(snapshot);
         if (state.tokenHistory.length > 30) {
           state.tokenHistory = state.tokenHistory.slice(-30);
         }
+
+        const totalTokens = Math.max(0, Math.round(snapshot.total || 0));
+        let tokenRate = state.globalMetrics.tokenRate;
+
+        if (previous) {
+          const elapsedMs = Math.max(1, snapshot.timestamp - previous.timestamp);
+          const elapsedMinutes = elapsedMs / 60_000;
+          const tokenDelta = snapshot.total - previous.total;
+          const instantaneousRate = tokenDelta > 0 ? tokenDelta / elapsedMinutes : 0;
+          tokenRate = Number.isFinite(instantaneousRate) ? instantaneousRate : 0;
+        }
+
+        state.globalMetrics = {
+          ...state.globalMetrics,
+          totalTokens,
+          tokenRate,
+        };
       });
     },
 
@@ -999,7 +1093,7 @@ function isRegisteredMainAgentId(
     if (mapped) {
       for (const mid of mapped) {
         const ma = state.agents.get(mid);
-        if (ma && !ma.isSubAgent && ma.confirmed) {
+        if (isConfirmedMainAgent(ma)) {
           // Session belongs to a known main agent but agentId differs → likely sub-agent
           return false;
         }
@@ -1028,7 +1122,7 @@ function extractParentFromSessionKey(
     // Try known sessionKey patterns for the parent
     for (const [sk, mapped] of state.sessionKeyMap) {
       if (sk.startsWith(`agent:${parentName}:`) && !sk.includes(":subagent:") && mapped.length > 0) {
-        return mapped[0];
+        return pickPreferredMappedAgentId(state, mapped) ?? null;
       }
     }
 
@@ -1046,6 +1140,39 @@ function extractParentFromSessionKey(
     }
   }
   return null;
+}
+
+function discardEphemeralAgent(agentId: string): void {
+  useOfficeStore.setState((state) => {
+    const agent = state.agents.get(agentId);
+    if (!agent || agent.confirmed) {
+      return;
+    }
+
+    state.agents.delete(agentId);
+    if (state.selectedAgentId === agentId) {
+      state.selectedAgentId = null;
+    }
+
+    for (const [runId, mappedAgentId] of state.runIdMap) {
+      if (mappedAgentId === agentId) {
+        state.runIdMap.delete(runId);
+        trackRemovedId(runId);
+      }
+    }
+
+    for (const [sessionKey, mappedAgentIds] of state.sessionKeyMap) {
+      const filtered = mappedAgentIds.filter((id) => id !== agentId);
+      if (filtered.length === 0) {
+        state.sessionKeyMap.delete(sessionKey);
+      } else {
+        state.sessionKeyMap.set(sessionKey, filtered);
+      }
+    }
+
+    trackRemovedId(agentId);
+    state.globalMetrics = computeMetrics(state.agents, state.globalMetrics);
+  });
 }
 
 function updateCollaborationLinks(

@@ -5,6 +5,10 @@ interface BrowserLocationLike {
   protocol: string;
 }
 
+interface ResolveGatewayWebSocketUrlOptions {
+  preferSameOriginProxy?: boolean;
+}
+
 function getWebSocketOrigin(location: BrowserLocationLike) {
   const protocol = location.protocol === "https:" ? "wss:" : "ws:";
   return `${protocol}//${location.host}`;
@@ -13,7 +17,12 @@ function getWebSocketOrigin(location: BrowserLocationLike) {
 export function resolveGatewayWebSocketUrl(
   configuredUrl: string | undefined,
   location: BrowserLocationLike,
+  options: ResolveGatewayWebSocketUrlOptions = {},
 ) {
+  if (options.preferSameOriginProxy) {
+    return `${getWebSocketOrigin(location)}${DEFAULT_PROXY_PATH}`;
+  }
+
   if (!configuredUrl) {
     return `${getWebSocketOrigin(location)}${DEFAULT_PROXY_PATH}`;
   }
