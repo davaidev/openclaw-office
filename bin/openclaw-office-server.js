@@ -146,7 +146,8 @@ function pipeProxySockets(downstreamSocket, upstreamSocket, downstreamHead, upst
 
 export function proxyWebSocketUpgrade(req, downstreamSocket, downstreamHead, config) {
   const pathname = new URL(req.url || "/", `http://${req.headers.host || "localhost"}`).pathname;
-  if (pathname !== config.browserGatewayUrl) {
+  const proxyPath = config.serverProxyPath ?? config.browserGatewayUrl;
+  if (pathname !== proxyPath) {
     downstreamSocket.end(buildSocketErrorResponse(404, "Not Found"));
     return;
   }

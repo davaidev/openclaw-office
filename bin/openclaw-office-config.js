@@ -13,7 +13,7 @@ export function getOfficeConfigPath(homeDir = homedir()) {
 }
 
 export function parseArgs(argv = process.argv.slice(2)) {
-  const result = { token: "", gatewayUrl: "", port: 0, host: "" };
+  const result = { token: "", gatewayUrl: "", port: 0, host: "", base: "" };
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
     const next = argv[i + 1];
@@ -28,6 +28,9 @@ export function parseArgs(argv = process.argv.slice(2)) {
       i++;
     } else if (arg === "--host" && next) {
       result.host = next;
+      i++;
+    } else if ((arg === "--base" || arg === "-b") && next) {
+      result.base = next.replace(/\/$/, "") || "/";
       i++;
     } else if (arg === "--help" || arg === "-h") {
       result.help = true;
@@ -48,6 +51,7 @@ export function printHelp() {
     -g, --gateway <url>      Gateway WebSocket URL (default: ws://localhost:18789)
     -p, --port <port>        Server port (default: 5180, or PORT env)
     --host <host>            Bind address (default: 0.0.0.0)
+    -b, --base <path>        Base path when behind proxy (e.g. /office -> /office/gateway-ws)
     -h, --help               Show this help
 
   \x1b[1mGateway URL persistence:\x1b[0m
@@ -67,6 +71,7 @@ export function printHelp() {
     openclaw-office
     openclaw-office --token <token>
     openclaw-office --gateway ws://gateway.example.com:18789
+    openclaw-office --base office
     PORT=3000 openclaw-office
 `);
 }
@@ -200,6 +205,12 @@ export function resolveConfig({
 
   const port = args.port || parseInt(env.PORT || `${DEFAULT_PORT}`, 10);
   const host = args.host || env.HOST || DEFAULT_HOST;
+  const basePath = args.base || env.OPENCLAW_OFFICE_BASE || "";
+  const normalizedBase = basePath ? `/${basePath.replace(/^\/|\/$/g, "")}` : "";
+  const browserGatewayUrl = normalizedBase
+    ? `${normalizedBase}${DEFAULT_PROXY_PATH}`
+    : DEFAULT_PROXY_PATH;
+  const serverProxyPath = DEFAULT_PROXY_PATH;
   const shouldPersistGatewayUrl =
     !!gatewayUrl &&
     (gatewayUrlSource === "command line --gateway" || gatewayUrlSource === "OPENCLAW_GATEWAY_URL env") &&
@@ -213,7 +224,9 @@ export function resolveConfig({
     port,
     host,
     officeConfigPath,
-    browserGatewayUrl: DEFAULT_PROXY_PATH,
+    browserGatewayUrl,
+    serverProxyPath,
+    basePath: normalizedBase,
     shouldPersistGatewayUrl,
   };
 }
