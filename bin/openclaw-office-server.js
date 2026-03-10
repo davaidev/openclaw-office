@@ -264,6 +264,13 @@ export function createOfficeServer({
   const server = createHttpServer(async (req, res) => {
     const url = new URL(req.url || "/", `http://${req.headers.host || "localhost"}`);
     const pathname = decodeURIComponent(url.pathname);
+    const proxyPath = config.serverProxyPath ?? config.browserGatewayUrl;
+    if (
+      req.headers.upgrade?.toLowerCase() === "websocket" &&
+      pathname === proxyPath
+    ) {
+      return;
+    }
 
     if (pathname === RUNTIME_CONNECTION_PATH) {
       if (req.method === "GET") {
