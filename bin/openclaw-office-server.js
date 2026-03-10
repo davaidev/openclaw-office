@@ -30,6 +30,7 @@ export function createRuntimeConfigScript(config) {
   const runtimeConfig = JSON.stringify({
     gatewayUrl: config.browserGatewayUrl,
     gatewayToken: config.token,
+    basePath: config.basePath || "",
   });
   return `<script>window.__OPENCLAW_CONFIG__=${runtimeConfig};</script>`;
 }
