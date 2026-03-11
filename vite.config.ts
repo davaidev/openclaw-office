@@ -193,7 +193,8 @@ async function readJsonBody(req: IncomingMessage) {
 export default defineConfig(({ mode }) => {
   const defaultGatewayTarget = resolveGatewayTarget(mode);
   let currentGatewayTarget = defaultGatewayTarget;
-  const basePath = (process.env.VITE_BASE_PATH || "/").replace(/\/$/, "") || "";
+  const env = { ...loadEnv(mode, process.cwd(), "VITE_"), ...process.env };
+  const basePath = String(env.VITE_BASE_PATH || "/").replace(/\/$/, "") || "";
   const base = basePath ? `/${basePath}/` : "/";
 
   return {
