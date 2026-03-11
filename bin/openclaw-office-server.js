@@ -272,7 +272,9 @@ export function createOfficeServer({
       return;
     }
 
-    if (pathname === RUNTIME_CONNECTION_PATH) {
+    const basePath = config.basePath || "";
+    const connectionPath = basePath ? `${basePath}${RUNTIME_CONNECTION_PATH}` : RUNTIME_CONNECTION_PATH;
+    if (pathname === connectionPath || pathname === RUNTIME_CONNECTION_PATH) {
       if (req.method === "GET") {
         const mode =
           runtimeState.currentGatewayUrl === runtimeState.defaultGatewayUrl ? "local" : "remote";
@@ -314,14 +316,19 @@ export function createOfficeServer({
       return;
     }
 
-    if (pathname === "/" || pathname === "/index.html") {
+    const pathForFile = basePath && pathname.startsWith(basePath)
+      ? pathname.slice(basePath.length) || "/"
+      : pathname;
+
+    if (pathForFile === "/" || pathForFile === "/index.html") {
       const html = await getIndexHtml();
       res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
       res.end(html);
       return;
     }
 
-    const filePath = join(distDir, pathname);
+    const pathForFs = pathForFile.startsWith("/") ? pathForFile.slice(1) : pathForFile;
+    const filePath = join(distDir, pathForFs || "index.html");
     const content = await tryReadFile(filePath);
 
     if (content) {
@@ -329,6 +336,14 @@ export function createOfficeServer({
       const mime = MIME_TYPES[ext] || "application/octet-stream";
       res.writeHead(200, { "Content-Type": mime });
       res.end(content);
+      return;
+    }
+
+    const ext = extname(pathForFile).toLowerCase();
+    const isStaticAsset = ext && Object.hasOwn(MIME_TYPES, ext);
+    if (isStaticAsset) {
+      res.writeHead(404, { "Content-Type": "text/plain; charset=utf-8" });
+      res.end("Not Found");
       return;
     }
 
