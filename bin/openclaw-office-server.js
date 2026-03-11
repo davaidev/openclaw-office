@@ -322,7 +322,10 @@ export function createOfficeServer({
 
     if (pathForFile === "/" || pathForFile === "/index.html") {
       const html = await getIndexHtml();
-      res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
+      res.writeHead(200, {
+        "Content-Type": "text/html; charset=utf-8",
+        "Cache-Control": "no-cache",
+      });
       res.end(html);
       return;
     }
@@ -340,7 +343,7 @@ export function createOfficeServer({
     }
 
     const ext = extname(pathForFile).toLowerCase();
-    const isStaticAsset = ext && Object.hasOwn(MIME_TYPES, ext);
+    const isStaticAsset = (ext && ext in MIME_TYPES) || pathForFile.startsWith("/assets/");
     if (isStaticAsset) {
       res.writeHead(404, { "Content-Type": "text/plain; charset=utf-8" });
       res.end("Not Found");
@@ -348,7 +351,10 @@ export function createOfficeServer({
     }
 
     const html = await getIndexHtml();
-    res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
+    res.writeHead(200, {
+      "Content-Type": "text/html; charset=utf-8",
+      "Cache-Control": "no-cache",
+    });
     res.end(html);
   });
 
