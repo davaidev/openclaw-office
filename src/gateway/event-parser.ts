@@ -94,11 +94,18 @@ function parseTool(result: ParsedAgentEvent, event: AgentEventPayload): ParsedAg
   return result;
 }
 
+const SUMMARY_MAX_LEN = 100;
+
 function parseAssistant(result: ParsedAgentEvent, event: AgentEventPayload): ParsedAgentEvent {
   const text = (event.data.text as string) ?? "";
   result.status = "speaking";
   result.speechBubble = { text, timestamp: event.ts };
-  result.summary = text.length > 40 ? `${text.slice(0, 40)}...` : text;
+  if (text.length <= SUMMARY_MAX_LEN) {
+    result.summary = text;
+  } else {
+    const half = Math.floor(SUMMARY_MAX_LEN / 2);
+    result.summary = `${text.slice(0, half)} … ${text.slice(-half)}`;
+  }
   return result;
 }
 

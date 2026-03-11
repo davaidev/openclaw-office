@@ -79,7 +79,12 @@ export function EventTimeline() {
           >
             {evt.agentName}
           </span>
-          <span className="min-w-0 truncate text-gray-500 dark:text-gray-400">{evt.summary}</span>
+          <span
+            className="min-w-0 truncate text-gray-500 dark:text-gray-400"
+            title={evt.summary}
+          >
+            {evt.summary}
+          </span>
         </button>
       ))}
       {displayEvents.length === 0 && (

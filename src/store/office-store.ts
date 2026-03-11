@@ -36,15 +36,20 @@ import { computeMetrics } from "./metrics-reducer";
 
 const EVENT_HISTORY_LIMIT = 200;
 
-/** Merge consecutive assistant events from same agent (fixes legacy duplicate entries from IndexedDB). */
+const ASSISTANT_MERGE_WINDOW_MS = 1000;
+
+/** Merge consecutive assistant events from same agent within time window (streaming chunks). */
 function dedupeAssistantEvents(events: EventHistoryItem[]): EventHistoryItem[] {
   const out: EventHistoryItem[] = [];
   for (const evt of events) {
     const last = out[out.length - 1];
+    const withinWindow =
+      last && evt.timestamp - last.timestamp <= ASSISTANT_MERGE_WINDOW_MS;
     if (
       evt.stream === "assistant" &&
       last?.stream === "assistant" &&
-      last?.agentId === evt.agentId
+      last?.agentId === evt.agentId &&
+      withinWindow
     ) {
       out[out.length - 1] = evt;
     } else {
@@ -767,10 +772,13 @@ export const useOfficeStore = create<OfficeStore>()(
           summary: parsed.summary,
         };
         const last = state.eventHistory[state.eventHistory.length - 1];
+        const withinWindow =
+          last && event.ts - last.timestamp <= ASSISTANT_MERGE_WINDOW_MS;
         const isConsecutiveAssistant =
           event.stream === "assistant" &&
           last?.stream === "assistant" &&
-          last?.agentId === agentId;
+          last?.agentId === agentId &&
+          withinWindow;
 
         if (isConsecutiveAssistant) {
           state.eventHistory[state.eventHistory.length - 1] = historyItem;
