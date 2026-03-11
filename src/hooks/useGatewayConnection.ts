@@ -48,7 +48,7 @@ export function useGatewayConnection({ url, token }: UseGatewayConnectionOptions
           }
         });
 
-        // 2. Apply config BEFORE initAgents (prefillLoungePlaceholders uses maxSubAgents)
+        // 2. Apply config BEFORE initAgents
         const config = await adapter.configGet();
         const cfg = config.config as Record<string, unknown>;
         const agentsCfg = cfg.agents as Record<string, unknown> | undefined;
@@ -66,7 +66,7 @@ export function useGatewayConnection({ url, token }: UseGatewayConnectionOptions
           });
         }
 
-        // 3. Init agents (triggers prefillLoungePlaceholders with correct maxSubAgents)
+        // 3. Init agents
         const agentList = await adapter.agentsList() as AgentsListResponse;
         initAgents(agentList.agents);
         setOperatorScopes(["operator.admin"]);

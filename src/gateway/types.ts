@@ -287,9 +287,6 @@ export interface OfficeStore {
   // Agent 确认（unconfirmed → confirmed）
   confirmAgent: (agentId: string, role: "main" | "sub", parentId?: string) => void;
 
-  // 休息区预填充
-  prefillLoungePlaceholders: (count: number) => void;
-
   // Sessions 轮询
   setSessionsSnapshot: (snapshot: SessionSnapshot) => void;
 

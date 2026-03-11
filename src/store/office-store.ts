@@ -200,17 +200,6 @@ function mergeEphemeralAgentState(
   }
 }
 
-function nextPlaceholderIndex(agents: Map<string, VisualAgent>): number {
-  let maxIdx = -1;
-  for (const a of agents.values()) {
-    if (a.id.startsWith("placeholder-")) {
-      const idx = parseInt(a.id.slice("placeholder-".length), 10);
-      if (!Number.isNaN(idx) && idx > maxIdx) maxIdx = idx;
-    }
-  }
-  return maxIdx + 1;
-}
-
 function allocateNextPosition(
   agents: Map<string, VisualAgent>,
   toZone: AgentZone,
@@ -235,36 +224,19 @@ function allocateNextPosition(
   return allocatePosition("temp-" + Date.now(), toZone === "hotDesk", occupied);
 }
 
-/**
- * Move an unconfirmed agent to a lounge placeholder position.
- * Removes one placeholder to make room; if none available, uses first lounge position.
- */
+/** Assign agent to a free lounge position. */
 function activateFromLoungePlaceholder(
   state: { agents: Map<string, VisualAgent>; maxSubAgents: number },
   agent: VisualAgent,
 ): void {
-  // Find a placeholder to consume
-  let placeholder: VisualAgent | undefined;
+  const loungePositions = calculateLoungePositions(state.maxSubAgents);
+  const loungeOccupied = new Set<string>();
   for (const a of state.agents.values()) {
-    if (a.isPlaceholder && a.zone === "lounge") {
-      placeholder = a;
-      break;
-    }
+    if (a.zone === "lounge") loungeOccupied.add(positionKey(a.position));
   }
-  if (placeholder) {
-    agent.position = { ...placeholder.position };
-    agent.zone = "lounge";
-    state.agents.delete(placeholder.id);
-  } else {
-    const loungePositions = calculateLoungePositions(state.maxSubAgents);
-    const loungeOccupied = new Set<string>();
-    for (const a of state.agents.values()) {
-      if (a.zone === "lounge") loungeOccupied.add(positionKey(a.position));
-    }
-    const freePos = loungePositions.find((p) => !loungeOccupied.has(positionKey(p)));
-    agent.position = freePos ?? loungePositions[0] ?? { x: ZONES.lounge.x + 60, y: ZONES.lounge.y + 40 };
-    agent.zone = "lounge";
-  }
+  const freePos = loungePositions.find((p) => !loungeOccupied.has(positionKey(p)));
+  agent.position = freePos ?? loungePositions[0] ?? { x: ZONES.lounge.x + 60, y: ZONES.lounge.y + 40 };
+  agent.zone = "lounge";
 }
 
 export const useOfficeStore = create<OfficeStore>()(
@@ -355,46 +327,21 @@ export const useOfficeStore = create<OfficeStore>()(
             activateFromLoungePlaceholder(state, existingAgent);
           }
         } else {
-          // Not yet seen — activate a lounge placeholder or create fresh
-          let placeholder: VisualAgent | undefined;
+          // Not yet seen — create fresh and place in hotDesk
+          const occupied = new Set<string>();
           for (const a of state.agents.values()) {
-            if (a.isPlaceholder && a.zone === "lounge") {
-              placeholder = a;
-              break;
-            }
+            occupied.add(positionKey(a.position));
           }
-
-          if (placeholder) {
-            const oldId = placeholder.id;
-            const startPos = { ...placeholder.position };
-            state.agents.delete(oldId);
-
-            placeholder.id = info.agentId;
-            placeholder.name = info.label || `Sub-${info.agentId.slice(0, 6)}`;
-            placeholder.isPlaceholder = false;
-            placeholder.isSubAgent = true;
-            placeholder.parentAgentId = parentId;
-            placeholder.runId = info.sessionKey;
-            placeholder.status = "idle";
-            placeholder.position = startPos;
-            placeholder.confirmed = true;
-            state.agents.set(info.agentId, placeholder);
-          } else {
-            const occupied = new Set<string>();
-            for (const a of state.agents.values()) {
-              occupied.add(positionKey(a.position));
-            }
-            const agent = createVisualAgent(
-              info.agentId,
-              info.label || `Sub-${info.agentId.slice(0, 6)}`,
-              true,
-              occupied,
-            );
-            agent.parentAgentId = parentId;
-            agent.runId = info.sessionKey;
-            agent.zone = "hotDesk";
-            state.agents.set(info.agentId, agent);
-          }
+          const agent = createVisualAgent(
+            info.agentId,
+            info.label || `Sub-${info.agentId.slice(0, 6)}`,
+            true,
+            occupied,
+          );
+          agent.parentAgentId = parentId;
+          agent.runId = info.sessionKey;
+          agent.zone = "hotDesk";
+          state.agents.set(info.agentId, agent);
         }
 
         const parent = state.agents.get(parentId);
@@ -448,46 +395,9 @@ export const useOfficeStore = create<OfficeStore>()(
           else state.sessionKeyMap.set(sk, filtered);
         }
 
-        // Restore as a new placeholder in lounge
-        const loungePositions = calculateLoungePositions(state.maxSubAgents);
-        const loungeOccupied = new Set<string>();
-        for (const a of state.agents.values()) {
-          if (a.zone === "lounge" && a.id !== subAgentId) {
-            loungeOccupied.add(positionKey(a.position));
-          }
-        }
-        const freeLounge = loungePositions.find((p) => !loungeOccupied.has(positionKey(p)));
-
         state.agents.delete(subAgentId);
         if (state.selectedAgentId === subAgentId) {
           state.selectedAgentId = null;
-        }
-
-        // Create replacement placeholder if lounge has room
-        if (freeLounge) {
-          const phIdx = nextPlaceholderIndex(state.agents);
-          const phId = `placeholder-${phIdx}`;
-          const ph: VisualAgent = {
-            id: phId,
-            name: `待命-${phIdx}`,
-            status: "idle",
-            position: freeLounge,
-            currentTool: null,
-            speechBubble: null,
-            lastActiveAt: Date.now(),
-            toolCallCount: 0,
-            toolCallHistory: [],
-            runId: null,
-            isSubAgent: true,
-            isPlaceholder: true,
-            parentAgentId: null,
-            childAgentIds: [],
-            zone: "lounge",
-            originalPosition: null,
-            movement: null,
-            confirmed: true,
-          };
-          state.agents.set(phId, ph);
         }
 
         state.globalMetrics = computeMetrics(state.agents, state.globalMetrics);
@@ -578,37 +488,6 @@ export const useOfficeStore = create<OfficeStore>()(
       });
     },
 
-    prefillLoungePlaceholders: (count: number) => {
-      set((state) => {
-        const loungePositions = calculateLoungePositions(count);
-        for (let i = 0; i < Math.min(count, loungePositions.length); i++) {
-          const phId = `placeholder-${i}`;
-          if (state.agents.has(phId)) continue;
-          const ph: VisualAgent = {
-            id: phId,
-            name: `待命-${i}`,
-            status: "idle",
-            position: { ...loungePositions[i] },
-            currentTool: null,
-            speechBubble: null,
-            lastActiveAt: Date.now(),
-            toolCallCount: 0,
-            toolCallHistory: [],
-            runId: null,
-            isSubAgent: true,
-            isPlaceholder: true,
-            parentAgentId: null,
-            childAgentIds: [],
-            zone: "lounge",
-            originalPosition: null,
-            movement: null,
-            confirmed: true,
-          };
-          state.agents.set(phId, ph);
-        }
-      });
-    },
-
     confirmAgent: (agentId: string, role: "main" | "sub", parentId?: string) => {
       set((state) => {
         const agent = state.agents.get(agentId);
@@ -670,10 +549,6 @@ export const useOfficeStore = create<OfficeStore>()(
 
         state.globalMetrics = computeMetrics(state.agents, state.globalMetrics);
       });
-      // Prefill lounge with placeholder sub-agents
-      useOfficeStore.getState().prefillLoungePlaceholders(
-        useOfficeStore.getState().maxSubAgents,
-      );
     },
 
     processAgentEvent: (event: AgentEventPayload) => {
