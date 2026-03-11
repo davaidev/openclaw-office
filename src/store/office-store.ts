@@ -740,7 +740,7 @@ export const useOfficeStore = create<OfficeStore>()(
           }
         }
 
-        // Event history
+        // Event history — merge streaming assistant chunks (same agent) to avoid duplicate entries
         const historyItem: EventHistoryItem = {
           timestamp: event.ts,
           agentId,
@@ -748,15 +748,24 @@ export const useOfficeStore = create<OfficeStore>()(
           stream: event.stream,
           summary: parsed.summary,
         };
-        state.eventHistory.push(historyItem);
-        if (state.eventHistory.length > EVENT_HISTORY_LIMIT) {
-          state.eventHistory = state.eventHistory.slice(-EVENT_HISTORY_LIMIT);
-        }
+        const last = state.eventHistory[state.eventHistory.length - 1];
+        const isConsecutiveAssistant =
+          event.stream === "assistant" &&
+          last?.stream === "assistant" &&
+          last?.agentId === agentId;
 
-        // Non-blocking persistence to IndexedDB
-        queueMicrotask(() => {
-          localPersistence.saveEvent(historyItem).catch(() => {});
-        });
+        if (isConsecutiveAssistant) {
+          state.eventHistory[state.eventHistory.length - 1] = historyItem;
+        } else {
+          state.eventHistory.push(historyItem);
+          if (state.eventHistory.length > EVENT_HISTORY_LIMIT) {
+            state.eventHistory = state.eventHistory.slice(-EVENT_HISTORY_LIMIT);
+          }
+          // Persist only when pushing (not when merging streaming chunks)
+          queueMicrotask(() => {
+            localPersistence.saveEvent(historyItem).catch(() => {});
+          });
+        }
 
         state.globalMetrics = computeMetrics(state.agents, state.globalMetrics);
       });
