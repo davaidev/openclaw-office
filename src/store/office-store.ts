@@ -35,6 +35,24 @@ import { applyMeetingGathering, detectMeetingGroups } from "./meeting-manager";
 import { computeMetrics } from "./metrics-reducer";
 
 const EVENT_HISTORY_LIMIT = 200;
+
+/** Merge consecutive assistant events from same agent (fixes legacy duplicate entries from IndexedDB). */
+function dedupeAssistantEvents(events: EventHistoryItem[]): EventHistoryItem[] {
+  const out: EventHistoryItem[] = [];
+  for (const evt of events) {
+    const last = out[out.length - 1];
+    if (
+      evt.stream === "assistant" &&
+      last?.stream === "assistant" &&
+      last?.agentId === evt.agentId
+    ) {
+      out[out.length - 1] = evt;
+    } else {
+      out.push(evt);
+    }
+  }
+  return out;
+}
 const LINK_TIMEOUT_MS = 60_000;
 const THEME_STORAGE_KEY = "openclaw-theme";
 const CHAT_DOCK_HEIGHT_KEY = "openclaw-chat-dock-height";
@@ -934,7 +952,7 @@ export const useOfficeStore = create<OfficeStore>()(
         const cached = await localPersistence.getEvents(EVENT_HISTORY_LIMIT);
         if (cached.length > 0) {
           set((state) => {
-            state.eventHistory = cached;
+            state.eventHistory = dedupeAssistantEvents(cached);
           });
         }
         // Schedule cleanup for stale data
