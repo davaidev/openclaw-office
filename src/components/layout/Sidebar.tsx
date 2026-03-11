@@ -184,22 +184,20 @@ export function Sidebar() {
         </div>
       </CollapsibleSection>
 
-      {/* Sub-agents — only visible when there are sub-agents */}
-      {subAgents.length > 0 && (
-        <CollapsibleSection
-          id="subAgents"
-          title={t("sidebar.subAgents")}
-          collapsed={subAgentsSection.collapsed}
-          onToggle={() => toggleSection("subAgents")}
-          height={subAgentsSection.height}
-          onHeightChange={(h) => setSectionHeight("subAgents", h)}
-          minHeight={60}
-          maxHeight={300}
-          badge={subAgents.length}
-        >
-          <SubAgentPanel />
-        </CollapsibleSection>
-      )}
+      {/* Sub-agents — always visible, shows 0 when none */}
+      <CollapsibleSection
+        id="subAgents"
+        title={t("sidebar.subAgents")}
+        collapsed={subAgentsSection.collapsed}
+        onToggle={() => toggleSection("subAgents")}
+        height={subAgentsSection.height}
+        onHeightChange={(h) => setSectionHeight("subAgents", h)}
+        minHeight={60}
+        maxHeight={300}
+        badge={subAgents.length}
+      >
+        <SubAgentPanel />
+      </CollapsibleSection>
 
       {/* Agent detail — only visible when an agent is selected */}
       {selectedAgentId && (
