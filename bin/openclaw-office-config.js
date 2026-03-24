@@ -210,7 +210,11 @@ export function resolveConfig({
   const browserGatewayUrl = normalizedBase
     ? `${normalizedBase}${DEFAULT_PROXY_PATH}`
     : DEFAULT_PROXY_PATH;
-  const serverProxyPath = DEFAULT_PROXY_PATH;
+  // Must match browserGatewayUrl when --base is set so the Node proxy matches
+  // pathname /office/gateway-ws (not only /gateway-ws).
+  const serverProxyPath = normalizedBase
+    ? `${normalizedBase}${DEFAULT_PROXY_PATH}`
+    : DEFAULT_PROXY_PATH;
   const shouldPersistGatewayUrl =
     !!gatewayUrl &&
     (gatewayUrlSource === "command line --gateway" || gatewayUrlSource === "OPENCLAW_GATEWAY_URL env") &&
