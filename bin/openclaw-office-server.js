@@ -101,6 +101,26 @@ function toUpstreamOrigin(gatewayUrl) {
   return toUpstreamHttpUrl(gatewayUrl).origin;
 }
 
+/** Strip reverse-proxy headers from the browser→nginx→office hop before office→gateway.
+ * OpenClaw treats requests with X-Forwarded-* as non-local; then Origin http://127.0.0.1:18789
+ * fails checkBrowserOrigin unless dangerouslyAllowHostHeaderOriginFallback was on.
+ * The hop to the gateway is same-machine — forwarded headers must not be forwarded. */
+const STRIP_FROM_GATEWAY_UPSTREAM = new Set([
+  "x-forwarded-for",
+  "x-forwarded-proto",
+  "x-forwarded-host",
+  "x-real-ip",
+  "forwarded",
+]);
+
+function headersForGatewayUpstream(reqHeaders) {
+  const out = { ...reqHeaders };
+  for (const name of STRIP_FROM_GATEWAY_UPSTREAM) {
+    delete out[name];
+  }
+  return out;
+}
+
 function serializeUpgradeResponse(statusCode, statusMessage, headers) {
   const lines = [`HTTP/1.1 ${statusCode} ${statusMessage}`];
   for (const [key, value] of Object.entries(headers)) {
@@ -165,7 +185,7 @@ export function proxyWebSocketUpgrade(req, downstreamSocket, downstreamHead, con
   const upstreamReq = requestImpl(upstreamUrl, {
     method: "GET",
     headers: {
-      ...req.headers,
+      ...headersForGatewayUpstream(req.headers),
       host: upstreamUrl.host,
       origin: toUpstreamOrigin(config.gatewayUrl),
       connection: "Upgrade",
