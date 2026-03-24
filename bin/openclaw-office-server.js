@@ -101,6 +101,17 @@ function toUpstreamOrigin(gatewayUrl) {
   return toUpstreamHttpUrl(gatewayUrl).origin;
 }
 
+/** Prefer the browser Origin (e.g. https://neoclaw.ngrok.app) for the gateway hop.
+ * Forcing only http://127.0.0.1:18789 makes OpenClaw treat the session as non-HTTPS;
+ * with device auth enabled, Control UI then requires device identity or allowInsecureAuth. */
+function upstreamOriginForGateway(req, config) {
+  const raw = req.headers.origin;
+  if (typeof raw === "string" && raw.trim().length > 0) {
+    return raw.trim();
+  }
+  return toUpstreamOrigin(config.gatewayUrl);
+}
+
 /** Strip reverse-proxy headers from the browser→nginx→office hop before office→gateway.
  * OpenClaw treats requests with X-Forwarded-* as non-local; then Origin http://127.0.0.1:18789
  * fails checkBrowserOrigin unless dangerouslyAllowHostHeaderOriginFallback was on.
@@ -187,7 +198,7 @@ export function proxyWebSocketUpgrade(req, downstreamSocket, downstreamHead, con
     headers: {
       ...headersForGatewayUpstream(req.headers),
       host: upstreamUrl.host,
-      origin: toUpstreamOrigin(config.gatewayUrl),
+      origin: upstreamOriginForGateway(req, config),
       connection: "Upgrade",
       upgrade: "websocket",
     },
