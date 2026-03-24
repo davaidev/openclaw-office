@@ -126,7 +126,10 @@ export function App() {
   );
   const [isApplyingConnection, setIsApplyingConnection] = useState(false);
   const [connectionSetupError, setConnectionSetupError] = useState<string | null>(null);
-  const [connectionReady, setConnectionReady] = useState(() => connectionPreference !== null);
+  // Must start false when a saved preference exists: sync effect sets ready false then POSTs
+  // /__openclaw/connection. If we start true, the first paint connects WS then sync sets
+  // ready false → url "" → disconnect() while CONNECTING → "closed before established".
+  const [connectionReady, setConnectionReady] = useState(false);
   const { isMobile } = useResponsive();
   const setViewMode = useOfficeStore((s) => s.setViewMode);
 
